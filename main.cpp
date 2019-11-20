@@ -1,48 +1,102 @@
-#include "posit.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
+#include <string>
 #include <iostream>
+#include <vector>
 #include <iomanip>
-using namespace std;
 
-const int number_of_tests = 5;
-int bs[5] = {5, 8, 12, 15, 20}; 
-double eps = 10e-8;
+std::vector<std::pair<std::vector<int>, double> > equations[22];
+//this program is for std::, yep
 
-bool test(int aa, int bb){
-  float a = (float)aa;
-  float b = (float)bb;
-  Posit32 res(8779.f); //result that we want to get
 
-  Posit32 x11(pow(10, a)); //first vector initialization
-  Posit32 x12(1223.f);
-  Posit32 x13(pow(10, a-1));
-  Posit32 x14(pow(10, a-2));
-  Posit32 x15(3.f);
-  Posit32 x16(-pow(10, a-5));
+void calculate_step(double *current_count, double *result, int N) {
+    for (int i = 0; i < N; i++)
+        result[i] = 0;
+    for (int i = 0; i < N; i++) 
+        for (int j = 0; j < equations[i].size(); j++) {
+            double value = 1.0;
+            for (int idc : equations[i][j].first)
+                value = value * current_count[idc];
+            result[i] = result[i] + value*equations[i][j].second;
+        }
+}   
 
-  Posit32 x21(pow(10, b)); //second vector initialization
-  Posit32 x22(2.f);
-  Posit32 x23(-pow(10, b+1));
-  Posit32 x24(pow(10, b));
-  Posit32 x25(2111.f);
-  Posit32 x26(pow(10, b+3));
-  
-  Posit32 dot(x11*x21 + x13*x23 + x14*x24 + x16*x26 + x12*x22 + x15*x25); //dot-product
 
-  Posit32 diff(dot - res); //check for correctness
-  if (abs(diff.getDouble()) > eps) 
-    return false;
-  else 
-    return true;
-}
+int main() {
+  //init
+  double reactor[22];
+  double T;
+  int N;
+  int M;
+  //reading part:
+  //read time, number of reactants
+  //read concentrations
+  std::cin >> T >> N;
+  for (int i = 0; i < N; i++)
+      std::cin >> reactor[i];
+  //read number of reactions
+  std::cin >> M;
+  //read each reaction:
+  for (int i = 0; i < M; i++) {
+      int count, id;  //tmp variables for reading
+      std::vector<int> r_ids;  //for ids of reactants
+      std::vector<int> counts;  //amount of them
+      std::cin >> count >> id;  //first pair is read
+      counts.push_back(count); //adding number and id
+      r_ids.push_back(id);  
+      std::string str;
+      std::cin >> str;
+      //std::cout << str << endl;
+      if (str != ">") { 
+        std::cin >> count >> id;
+        counts.push_back(count);
+        r_ids.push_back(id);
+        std::cin >> str; //reading ">"
+      }
+      double k;
+      std::cin >> k; //reading reaction rate
+      if (counts.size() == 2) {
+        equations[r_ids[0]].push_back({r_ids, -k});
+        equations[r_ids[1]].push_back({r_ids, -k});
+      } 
+      else { 
+        if (counts[0] == 2) { //we have both components (s.o.d.e.)
+          r_ids.push_back(r_ids[0]);
+          equations[r_ids[0]].push_back({r_ids, -2 * k});
+        } 
+        else 
+          equations[r_ids[0]].push_back({r_ids, -k}); //only one
+      }
 
-int main (int argc, char *argv[]) {
-  int correct = 0;
-  for (int i = 0; i < number_of_tests; i++) {
-    if (test(5, bs[i])) 
-      correct++;
+      while (str != "#") {
+        std::cin >> str; //read amount of reactant
+        count = std::stold(str);
+        std::cin >> str; //read reactant id
+        equations[std::stoi(str)].push_back({r_ids, k * count});  //pushes <ids, float> to vector as the equation
+        std::cin >> str; //skip + or end with #
+      }
   }
-  cout << correct << " correct tests passed out of " << number_of_tests;
+  //using Runge-Kutta method
+  double h = T/4000.0;
+  double *c1 = new double[22];
+  double *c2 = new double[22];
+  double *c3 = new double[22];
+  double *c4 = new double[22];
+  double *temporary = new double[22];
+  for (int step = 0; step < 4000; step++) {
+    calculate_step(reactor, c1, N);
+    for (int i = 0; i < N; i++) 
+      temporary[i] = reactor[i] + (h/2)*c1[i];
+    calculate_step(temporary, c2, N);
+    for (int i = 0; i < N; i++) 
+      temporary[i] = reactor[i] + (h/2)*c2[i];
+    calculate_step(temporary, c3, N);
+    for (int i = 0; i < N; i++) 
+      temporary[i] = reactor[i] + h*c3[i];
+    calculate_step(temporary, c4, N);
+    for (int i = 0; i < N; i++) 
+      reactor[i] += (h/6)*(c1[i] + 2*c2[i] + 2*c3[i] + c4[i]);
+  }
+  //output answer with e-6 accuracy
+  for (int i = 0; i < N; i++)
+    printf("%.8f ", reactor[i]);
+  return 0;
 }
